@@ -1,0 +1,12 @@
+{
+    "agent": "MAITS_SCANNER_v2.2",
+    "timestamp": 1775589417,
+    "pair": "XRPUSD",
+    "metrics": {
+        "price": 1.30576,
+        "rsi": 45.83,
+        "ai_signal": "NEUTRAL",
+        "dev_from_mean": -0.32
+    },
+    "status": "VERIFIED"
+}
