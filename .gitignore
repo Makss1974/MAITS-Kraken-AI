@@ -1,0 +1,6 @@
+venv/
+.env
+key.env
+__pycache__/
+artifacts/
+*.lsonl
