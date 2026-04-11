@@ -1,80 +1,92 @@
-import pandas as pd
-import pandas_ta as ta
 import os
 import json
 import gc
+import pandas as pd
+import pandas_ta as ta
 from datetime import datetime
 
 class SwingCylinder:
-    """Індивідуальний трендовий аналізатор для конкретної пари"""
+    """Individual Trend Analyzer for a specific trading pair"""
     def __init__(self, pair, budget):
         self.pair = pair
         self.budget = budget
         self.in_position = False
         self.entry_price = 0
         
-        # Налаштування індикаторів (можна адаптувати під волатильність)
+        # --- TECHNICAL CONFIGURATION ---
         self.macd_fast = 12
         self.macd_slow = 26
         self.macd_signal = 9
         self.ema_period = 100
+        
+        print(f"   💎 [CYLINDER] {pair}: Trend Analysis Core initialized (EMA {self.ema_period}).")
 
     def analyze(self, df):
-        """Розрахунок сигналів на реальних даних (OHLCV)"""
+        """Calculates trend signals using MACD Cross and EMA Filter"""
         if df is None or len(df) < self.ema_period:
             return "HOLD", 0
 
-        # Рахуємо технічні індикатори
+        # Calculate Indicators using pandas_ta
+        # Note: We ensure the data is compatible with TA-Lib logic
         macd = df.ta.macd(close='c', fast=self.macd_fast, slow=self.macd_slow, signal=self.macd_signal)
         ema = df.ta.ema(close='c', length=self.ema_period)
 
         if macd is None or ema is None:
             return "HOLD", 0
 
-        # Поточні та попередні значення для визначення перетину
-        m_col, s_col = macd.columns[0], macd.columns[2]
+        # Extracting MACD Line and Signal Line
+        # MACD Column names usually follow 'MACD_12_26_9' format
+        m_col = macd.columns[0] # MACD Line
+        s_col = macd.columns[2] # Signal Line
+        
         curr_m, curr_s = macd[m_col].iloc[-1], macd[s_col].iloc[-1]
         prev_m, prev_s = macd[m_col].iloc[-2], macd[s_col].iloc[-2]
         
         curr_price = df['c'].iloc[-1]
         curr_ema = ema.iloc[-1]
 
-        # ЛОГІКА: Перетин MACD знизу вгору + ціна вище EMA 100
+        # LOGIC 1: Bullish MACD Cross + Price Above EMA (Safe Uptrend)
         if (curr_m > curr_s and prev_m <= prev_s) and (curr_price > curr_ema):
             return "BUY", curr_price
         
-        # ЛОГІКА ВИХОДУ: Перетин MACD зверху вниз
+        # LOGIC 2: Bearish MACD Cross (Trend Weakness)
         if (curr_m < curr_s and prev_m >= prev_s):
             return "SELL", curr_price
 
         return "HOLD", curr_price
 
 class SwingEngine:
+    """Manages multi-pair swing trading strategies for volatile markets"""
     def __init__(self):
         self.cylinders = {}
-        self.log_path = "/home/ubuntu/03.KRAKEN_PROD/MAITS/state/trades_history.lsonl"
+        self.base_dir = "/home/ubuntu/03.KRAKEN_PROD/MAITS"
+        self.log_path = os.path.join(self.base_dir, "state/trades_history.lsonl")
+        self.first_run = True
 
     def run_cycle(self, selected_pairs_data, global_budget):
-        """Вхідна точка з main.py"""
         if not selected_pairs_data:
             return
 
-        print(f"📊 [SWING ENGINE] Scanning {len(selected_pairs_data)} pairs for Trend Signals...")
-        
-        # Виділяємо ліміт на кількість одночасних позицій (наприклад, 3 слоти)
-        budget_per_slot = global_budget / 3 
+        # --- XAI NARRATIVE: Engine Initialization ---
+        if self.first_run:
+            print(f"\n🦾 [SWING ENGINE]: High-volatility 'PIG' mode detected. "
+                  f"Searching for Trend Reversals with budget: ${global_budget:.2f}...")
+            self.first_run = False
+        else:
+            print(f"\n⚙️  [SWING ENGINE]: Monitoring {len(selected_pairs_data)} trend cylinders.")
 
+        # Distribute budget evenly across detected pairs
+        budget_per_cyl = global_budget / len(selected_pairs_data)
+        
         for p_data in selected_pairs_data:
             name = p_data['name']
+            df = p_data.get('df') # Historical OHLCV data
             
-            # Ініціалізація циліндра, якщо новий
             if name not in self.cylinders:
-                self.cylinders[name] = SwingCylinder(name, budget_per_slot)
+                self.cylinders[name] = SwingCylinder(name, budget_per_cyl)
+            else:
+                self.cylinders[name].budget = budget_per_cyl
 
-            # 1. Отримання даних (df має передаватися з Scanner або завантажуватися тут)
-            # Припустимо, Scanner вже підготував df у p_data['df']
-            df = p_data.get('df') 
-            
             if df is not None:
                 signal, price = self.cylinders[name].analyze(df)
                 self.execute_swing_logic(self.cylinders[name], signal, price)
@@ -82,29 +94,36 @@ class SwingEngine:
             gc.collect()
 
     def execute_swing_logic(self, cylinder, signal, price):
-        """Виконання реальних дій на основі сигналів"""
+        """Execution logic with detailed narrative for PuTTY console"""
         pair = cylinder.pair
         
+        reasoning = ""
+        action_triggered = False
+
         if signal == "BUY" and not cylinder.in_position:
-            reason = f"Bullish Cross-Over detected. Price {price} is above EMA {cylinder.ema_period}."
-            print(f"   🚀 [SWING ACTION] {pair} | BUY at {price}")
-            print(f"      ∟ Reason: {reason}")
+            reasoning = f"Bullish MACD crossover detected while price ({price:.2f}) stays above EMA {cylinder.ema_period}."
+            print(f"   🚀 [TREND ACTION] {pair}: {reasoning} -> Entering LONG position.")
             
             cylinder.in_position = True
             cylinder.entry_price = price
-            self.log_to_historian(pair, "BUY", price, reason)
+            action_triggered = True
+            self.log_to_historian(pair, "BUY", price, reasoning)
 
         elif signal == "SELL" and cylinder.in_position:
             profit = ((price - cylinder.entry_price) / cylinder.entry_price) * 100
-            reason = f"Bearish MACD Cross. Closing trend position with {profit:.2f}% profit."
-            print(f"   🔻 [SWING ACTION] {pair} | SELL at {price}")
-            print(f"      ∟ Reason: {reason}")
+            reasoning = f"Bearish MACD crossover detected. Protecting capital. Closing trend position."
+            print(f"   🔻 [TREND ACTION] {pair}: {reasoning} -> Result: {profit:+.2f}% profit.")
             
             cylinder.in_position = False
-            self.log_to_historian(pair, "SELL", price, reason, profit)
+            action_triggered = True
+            self.log_to_historian(pair, "SELL", price, reasoning, profit)
+
+        elif not action_triggered:
+            # Periodic status for logs (Optional, to keep console clean we don't print HOLD every time)
+            pass
 
     def log_to_historian(self, pair, action, price, reason, profit=0):
-        """Запис для AI Guardian"""
+        """Standard LSONL logging for AI Guardian & Historian"""
         entry = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "engine": "SWING",
@@ -112,8 +131,10 @@ class SwingEngine:
             "action": action,
             "price": price,
             "profit_pct": round(profit, 3),
-            "mdd": 0.0, # MDD розраховується в аналітиці
+            "mdd": 0.0, # Handled by AI Guardian
             "reasoning": reason
         }
+        
+        os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
         with open(self.log_path, "a") as f:
             f.write(json.dumps(entry) + "\n")
