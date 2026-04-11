@@ -5,25 +5,28 @@ import gc
 import sys
 from datetime import datetime
 
-# STEP 1: Setting up paths for core modules (Rule 2025-12-29)
-sys.path.append(os.path.join(os.path.dirname(__file__), 'core'))
-
-# Checking for pandas_ta before engine imports
-try:
-    import pandas_ta
-except ImportError:
-    print("⚠️ Warning: 'pandas_ta' not found. Please run: pip install pandas_ta")
+# BASE_DIR - Єдиний робочий каталог проекту
+BASE_DIR = "/home/ubuntu/03.KRAKEN_PROD/MAITS"
+sys.path.append(os.path.join(BASE_DIR, 'core'))
 
 # Core Tool Imports
-from core.scanner import get_historical_stats
+from core.Gearbox import Gearbox  # Переконайтеся, що файл називається Gearbox.py
+from core.scanner import get_historical_stats, MARKET_ASSETS
 from core.selector import get_market_segmentation, display_segmentation_table
-from core.historian import calculate_probabilities
-from core.executor import execute_engine_command
 from core.ai_guardian import perform_final_audit
+from core.analyst import BotAnalyst
 
-# STEP 2: Engine Imports
+# Конфігурація шляхів та бюджету
+LOG_FILE = os.path.join(BASE_DIR, "state/trades_history.lsonl")
+TOTAL_BUDGET = 5000.0
+
+# Ініціалізація аналітика та коробки передач
+analyst = BotAnalyst(log_path=LOG_FILE, start_balance=TOTAL_BUDGET)
+gearbox = Gearbox(total_balance=TOTAL_BUDGET)
+
+# Імпорт двигунів
 try:
-    from engines.anti_crash_engine import AntiCrashEngine as AntiKrashEngine
+    from engines.anti_crash_engine import AntiCrashEngine
     from engines.bear_engine import BearEngine
     from engines.bull_engine import BullEngine
     from engines.hold_engine import HoldEngine 
@@ -32,56 +35,23 @@ try:
     print("✅ All Engines loaded successfully.")
 except ImportError as e:
     print(f"❌ Critical Engine Import Error: {e}")
-    AntiKrashEngine = BearEngine = BullEngine = HoldEngine = SidewaysEngine = SwingEngine = None
-
-# --- CONFIGURATION ---
-BASE_DIR = "/home/ubuntu/03.KRAKEN_PROD/MAITS"
-STATE_DIR = os.path.join(BASE_DIR, "state")
-LOG_FILE = os.path.join(STATE_DIR, "trades_history.lsonl")
-TOTAL_BUDGET = 5000  
+    AntiCrashEngine = BearEngine = BullEngine = HoldEngine = SidewaysEngine = SwingEngine = None
 
 class MaitsController:
     def __init__(self):
-        os.makedirs(STATE_DIR, exist_ok=True)
+        os.makedirs(os.path.join(BASE_DIR, "state"), exist_ok=True)
+        self.target_pairs = MARKET_ASSETS 
         
-        # Extended Asset List (40+ pairs for full market analysis)
-        self.target_pairs = [
-            "XBTUSD", "ETHUSD", "SOLUSD", "XRPUSD", "ADAUSD", "DOTUSD", "AVAXUSD",
-            "LINKUSD", "LTCUSD", "BCHUSD", "SHIBUSD", "MATICUSD", "UNIUSD", "NEARUSD",
-            "ICPUSD", "XLMUSD", "ETCUSD", "FILUSD", "XMRUSD", "ATOMUSD", "LDOUSD",
-            "HBARUSD", "APTUSD", "ARBUSD", "VETUSD", "OPUSD", "GRTUSD", "RNDRUSD",
-            "STXUSD", "MKRUSD", "INJUSD", "THETAUSD", "RUNEUSD", "TIAUSD", "AAVEUSD",
-            "ALGOUSD", "EGLDUSD", "FLOWUSD", "KAVAUSD", "SANDUSD", "MANAUSD"
-        ]
-        
-        self.engines = {
-            "1. SIDEWAYS": SidewaysEngine() if SidewaysEngine else None,
-            "2. BULLISH": BullEngine() if BullEngine else None,
-            "3. BEARISH": BearEngine() if BearEngine else None,
-            "4. PIG": SwingEngine() if SwingEngine else None,
-            "5. HOLD": HoldEngine() if HoldEngine else None,
-            "6. CRASH": AntiKrashEngine() if AntiKrashEngine else None
+        self.engine_instances = {
+            "SIDEWAYS_ENGINE": SidewaysEngine() if SidewaysEngine else None,
+            "BULL_ENGINE": BullEngine() if BullEngine else None,
+            "BEAR_ENGINE": BearEngine() if BearEngine else None,
+            "SWING_ENGINE": SwingEngine() if SwingEngine else None,
+            "HOLD_ENGINE": HoldEngine() if HoldEngine else None,
+            "ANTI_CRASH_ENGINE": AntiCrashEngine() if AntiCrashEngine else None
         }
-
-    def allocate_resources(self, segmentation_report):
-        allocations = {}
-        print("\n💰 [GEARBOX] Resource Allocation:")
-        
-        for regime, data in segmentation_report.items():
-            weight = data.get('weight', 0) / 100.0
-            
-            # Logic: Crash mode takes 80% if threat level is high
-            if regime == "6. CRASH" and weight > 0.1:
-                allocations[regime] = TOTAL_BUDGET * 0.8
-            elif weight > 0.01:
-                allocations[regime] = TOTAL_BUDGET * weight
-            else:
-                allocations[regime] = 0
-            
-            if allocations.get(regime, 0) > 0:
-                print(f"   - {regime:<15}: ${allocations[regime]:>8.2f}")
-        
-        return allocations
+        self.last_regime = "N/A"
+        self.last_engine = "N/A"
 
     def run_cycle(self):
         print(f"\n{'='*70}\n🚀 MAITS CYCLE | {datetime.now().strftime('%H:%M:%S')}")
@@ -90,10 +60,8 @@ class MaitsController:
         total_assets = len(self.target_pairs)
         print(f"🔍 Scanning {total_assets} assets via Kraken CLI...")
         
-        # Gathering all data before analysis
         for i, pair in enumerate(self.target_pairs):
             try:
-                # Progress indicator for large scans
                 if (i + 1) % 10 == 0 or i + 1 == total_assets:
                     print(f"📊 Progress: {i+1}/{total_assets} assets scanned...")
                 
@@ -107,53 +75,61 @@ class MaitsController:
             print("❌ No market data collected. Skipping cycle.")
             return
 
-        # Market Analysis
+        # 1. Аналіз ринку та сегментація
         segmentation = get_market_segmentation(market_data)
         display_segmentation_table(segmentation)
 
-        # Resource Allocation
-        allocations = self.allocate_resources(segmentation)
-
-        # Execution Phase
-        for regime, budget in allocations.items():
+        # 2. Розподіл капіталу через Gearbox
+        allocations = gearbox.allocate_capital(segmentation)
+        
+        # 3. ФАЗА ВИКОНАННЯ (Виправлений цикл запуску)
+        for engine_key, budget in allocations.items():
             if budget <= 10: 
                 continue
             
-            pair_names = segmentation.get(regime, {}).get('pairs', [])
-            pairs_with_stats = []
-            
-            for name in pair_names:
-                if name in market_data:
-                    data = market_data[name].copy()
-                    data['name'] = name
-                    pairs_with_stats.append(data)
+            # Визначаємо відповідний режим ринку для логів
+            current_regime_name = "N/A"
+            for reg_name in segmentation.keys():
+                if engine_key.split('_')[0] in reg_name:
+                    current_regime_name = reg_name
+                    break
 
-            engine = self.engines.get(regime)
+            self.last_engine = engine_key
+            self.last_regime = current_regime_name
+
+            # --- ФІКС: Фільтрація списку пар для двигуна ---
+            pairs_list = segmentation.get(current_regime_name, {}).get('pairs', [])
             
-            if engine and pairs_with_stats:
-                print(f"⚙️  Activating {regime} Engine...")
+            selected_pairs_data = []
+            for p_name in pairs_list:
+                if p_name in market_data:
+                    p_info = market_data[p_name].copy()
+                    p_info['name'] = p_name
+                    selected_pairs_data.append(p_info)
+
+            # Виклик двигуна
+            engine = self.engine_instances.get(engine_key)
+            if engine and selected_pairs_data:
+                print(f"⚙️ Gearbox: Activating {engine_key} with ${budget:.2f}")
                 try:
-                    if hasattr(engine, 'run_cycle'):
-                        engine.run_cycle(pairs_with_stats, budget)
-                    else:
-                        print(f"⚠️  Engine {regime} is missing 'run_cycle' method.")
+                    # Тепер передаємо СПИСОК словників, як того очікують двигуни
+                    engine.run_cycle(selected_pairs_data, budget)
                 except Exception as e:
-                    print(f"⚠️  Engine {regime} execution failed: {e}")
+                    print(f"⚠️ Engine {engine_key} failed: {e}")
 
-        # AI Guardian Audit
-        print("\n🛡️  AI Guardian performing audit...")
+        # 4. AI Guardian Audit
+        print("\n🛡️ AI Guardian performing audit...")
         try:
             perform_final_audit(LOG_FILE)
         except Exception as e:
-            print(f"⚠️  Audit failed: {e}")
+            print(f"⚠️ Audit failed: {e}")
 
         gc.collect()
-        print(f"\n✅ Cycle finished successfully.")
 
 if __name__ == "__main__":
     print(f"\n{'*' * 70}")
     print("🌟 HELLO, BOSS! I'm MAITS — your multi-gear trading system.")
-    print(f"🤖 MAITS v2.4 ONLINE | Location: {BASE_DIR}")
+    print(f"🤖 MAITS v2.4 ONLINE | Working Directory: {BASE_DIR}")
     print(f"{'*' * 70}\n")
 
     try:
@@ -161,6 +137,14 @@ if __name__ == "__main__":
         while True:
             try:
                 controller.run_cycle()
+                
+                # Оновлений моніторинг (Дашборд)
+                analyst.display_dashboard(
+                    active_engine_name=controller.last_engine, 
+                    market_regime=controller.last_regime,
+                    pairs_count=len(controller.target_pairs)
+                )
+
             except Exception as cycle_error:
                 print(f"⚠️ Emergency: Error during execution cycle: {cycle_error}")
             
