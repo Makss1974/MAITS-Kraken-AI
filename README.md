@@ -71,5 +71,46 @@ Plaintext
 🏆 Win Rate:         81.9%
 📉 Max Drawdown:    -0.16%
 =============================================
+
+Це стратегічно правильний хід. Жюрі має бачити, що ти не просто написав код «на колінці» за вихідні, а будуєш серйозну екосистему. Такий план перетворює твій проект на потенційний стартап.
+
+Ось детальний Strategic Roadmap 2026, який ти можеш вставити в README.md або в презентацію. Я додав перші два квартали, де ми закріплюємо успіх хакатону.
+
+🗺️ MAITS Strategic Roadmap 2026: From Agent to Ecosystem
+Q1 2026: Foundation & Validation (Hackathon Phase)
+Core Engine Development: Completion of the "6-Gear" autonomous logic.
+
+Kraken CLI Integration: Implementation of AI-driven execution via command-line interface.
+
+Explainable AI (XAI): Rollout of the narrative logging system for transparent decision-making.
+
+Simulation Excellence: Achieving stable +70% PnL in production-style sandbox environments.
+
+Q2 2026: Live Production & Scalability
+Mainnet Deployment: Transition from Sandbox to live Kraken exchange trading with real capital.
+
+Multi-Account Management: Upgrading the Gearbox to handle capital allocation across multiple sub-accounts.
+
+Advanced Analytics Suite: Integration of the BotAnalyst with a web-based dashboard for real-time performance tracking (Grafana/Streamlit).
+
+Security Hardening: Implementation of hardware-encrypted API key management (Rule 2025-12-22).
+
+Q3 2026: Decentralized Identity (ERC-8004 Integration)
+Agent Identity Registry: Registering the MAITS unique ID on-chain via ERC-8004.
+
+Trust Signal Minting: Automatically generating verifiable artifacts for every successful trade using web3.py.
+
+On-chain Reputation: Building a transparent performance history that cannot be altered, attracting institutional liquidity.
+
+Validator Nodes: Enabling external validation of MAITS trading signals to increase the "Trust Score."
+
+Q4 2026: Institutional Risk Governance
+Smart Risk Router: Implementation of a Solidity-based Risk Router that acts as an "on-chain circuit breaker."
+
+Exposure Limits: Hard-coding maximum drawdown and position size limits into smart contracts (Trustless Security).
+
+Social Trading API: Allowing third-party investors to "follow" MAITS signals via ERC-8004 identity verification.
+
+Global Expansion: Adding support for additional top-tier exchanges beyond Kraken.
 Developed by Makss for Hackathon 2026
 MAITS: Protecting Capital. Harvesting Volatility. Explaining Decisions.
