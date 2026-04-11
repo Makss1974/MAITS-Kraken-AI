@@ -1,24 +1,75 @@
 [README.md](https://github.com/user-attachments/files/26639058/README.md)
-# 🐺 MAITS: Multi-Layer AI Trading System
+🐺 MAITS: Makss AI Trading System (v2.4)
+MAITS is an autonomous, multi-strategy trading agent designed for the Kraken exchange. Unlike simple bots, 
+MAITS acts as a Market Orchestrator, segmenting the entire market into specific regimes and deploying dedicated trading engines for each.
 
-MAITS is an autonomous trading agent designed for the Kraken exchange. It combines statistical analysis, trend tracking, and AI-driven risk management.
+🧠 The "6-Gear" Logic: Adaptive Intelligence
+MAITS doesn't use a "one-size-fits-all" strategy. It dynamically switches between 6 specialized engines ("Gears") based on real-time market DNA:
 
-## 🧠 The Three-Stage Analysis Logic
+1. SIDEWAYS Engine: High-frequency grid-trading with adaptive volatility harvesting.
 
-Our strategy isn't based on luck; it’s a systematic 3-layer filter:
+2. BULLISH Engine: Trend-following with Stochastic-optimized pullback entry logic.
 
-1.  **Stage 1: THE SELECTOR (Market Context)**
-    * Scans available pairs (e.g., SOLUSD, BTCUSD).
-    * Filters by 24h volume and volatility to find where the "smart money" is moving.
-2.  **Stage 2: THE SCANNER (Technical DNA)**
-    * Analyzes **RSI** (Relative Strength Index) to avoid buying overbought assets.
-    * Uses **Bollinger Bands** to identify price breakouts and volatility squeezes.
-    * Identifies the Market Regime: Bullish, Bearish, or Sideways.
-3.  **Stage 3: THE HISTORIAN (Probabilistic Edge)**
-    * Calculates the **Trend Exhaustion Probability**.
-    * If the trend is too old (high probability of reversal), the bot stays in "WAIT" mode, even if technicals look good.
+3. BEARISH Engine: Selective shorting (Majors) and capital preservation protocols.
 
-## 🛡️ AI Guardian & Risk Management
-* **Automatic State Tracking:** Persistent `bot_state.json` ensures the bot never "forgets" its position after a crash.
-* **AI Guardian:** An integrated monitor that triggers an AI-powered post-mortem analysis if a drawdown >15% occurs.
-* **LSONL Logging:** Every trade is recorded in a machine-readable format for future ML training.
+4. PIG (Swing) Engine: Momentum-based trading capturing medium-term price swings.
+
+5. HOLD Engine: Zen-strategy for strategic asset accumulation during extreme discounts.
+
+6. ANTI-CRASH Engine: A 3-level emergency shield for Black-Swan events (Asset, Market, or Global crash).
+
+🚀 Key Features for Hackathon 2026
+🧬 Multi-Cylinder Architecture
+Each trading pair is treated as an independent Cylinder with its own risk profile (Conservative/Aggressive). 
+This allows MAITS to manage 40+ assets simultaneously without cross-contamination of logic or budget.
+
+🗣️ Explainable AI (XAI) Logging
+MAITS doesn't just trade; it communicates. Every decision is backed by a human-readable narrative in the logs:
+
+“Executing BUY for XBTUSD: Price hit lower boundary of the 1.74% volatility corridor. Expected mean reversion.”
+
+⚙️ Gearbox Capital Allocation
+The Gearbox unit performs real-time portfolio optimization, distributing a $5,000 budget with a mandatory
+ 20% safety reserve. It applies efficiency coefficients to prioritize the most profitable market regimes.
+
+🛡️ Technical Architecture
+Selector: Real-time DNA analysis of 41+ assets via Kraken CLI.
+
+AI Guardian: Integrated auditor performing health checks and MDD monitoring.
+
+LSONL Historian: High-performance, ML-ready logging for future model training.
+
+State Persistence: Individual engine states are maintained during the execution cycle.
+
+💻 Quick Start (Judge's Guide)
+To run MAITS in your local environment:
+
+Clone & Install Dependencies:
+
+Bash
+git clone https://github.com/your-repo/maits-v2.4.git
+cd maits-v2.4
+pip install -r requirements.txt
+Initialize the System:
+
+Bash
+python3 main.py
+Note: The system will automatically initialize in Simulation Mode if Kraken API keys are not detected.
+
+📊 Live Dashboard Preview
+Plaintext
+=============================================
+📈 MAITS PERFORMANCE DASHBOARD | 08:35
+=============================================
+📡 Status:          ONLINE
+⚙️  Active Engine:   SIDEWAYS_ENGINE
+📊 Market Regime:   1. SIDEWAYS (Weight 99.6%)
+🔢 Active Pairs:    40
+---------------------------------------------
+✅ Total Trades:     343
+💰 Total PnL:       +71.63%
+🏆 Win Rate:         81.9%
+📉 Max Drawdown:    -0.16%
+=============================================
+Developed by Makss for Hackathon 2026
+MAITS: Protecting Capital. Harvesting Volatility. Explaining Decisions.
