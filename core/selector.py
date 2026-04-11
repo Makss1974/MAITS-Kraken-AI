@@ -1,35 +1,33 @@
-import subprocess
-import json
-import shutil
 import time
 import os
+from prettytable import PrettyTable
 
-# Імпортуємо функцію та спільний список активів зі сканера (тепер з core)
+# STEP 1: Імпорт єдиного списку активів та функцій зі сканера
+# Використовуємо Rule 2025-12-29 щодо стабільності структури
 try:
     from core.scanner import get_historical_stats, MARKET_ASSETS
 except ImportError:
+    # Для запусків напряму з папки core
     from scanner import get_historical_stats, MARKET_ASSETS
-
-# Глобальні змінні для кешування
-_cached_segmentation = {}
-_last_scan_time = 0
 
 def select_best_pair(market_data):
     """
     Аналізує зібрані дані та повертає пару з найкращим сигналом.
-    Якщо сигналів немає, повертає лідера за об'ємом.
+    Використовує AI_SIGNAL та Volatility для скорингу.
     """
     if not market_data:
-        return "XBTUSD"
+        return MARKET_ASSETS[0] if MARKET_ASSETS else "XBTUSD"
     
     best_pair = "XBTUSD"
     max_score = -1.0
     
     for pair, stats in market_data.items():
-        # Пріоритет парам з STRONG_BUY
-        score = 1.0 if stats.get('ai_signal') == "STRONG_BUY" else 0.0
-        # Додаємо волатильність як бонусний бал (якщо не занадто висока)
-        score += (stats.get('volatility', 0) / 10.0)
+        # Скоринг: STRONG_BUY дає базовий бал
+        score = 1.5 if stats.get('ai_signal') == "STRONG_BUY" else 0.0
+        
+        # Додаємо волатильність як фактор (чим вища в розумних межах, тим краще для ботів)
+        vol = stats.get('volatility', 0)
+        score += (vol / 10.0)
         
         if score > max_score:
             max_score = score
@@ -39,8 +37,8 @@ def select_best_pair(market_data):
 
 def get_market_segmentation(market_data):
     """
-    Головна функція для main.py. 
-    Приймає готові дані сканера і групує їх по 6-ти сегментах.
+    Головна функція сегментації для main.py. 
+    Групує всі 41 пару за 6-ма режимами GEARBOX.
     """
     segmentation = {
         "1. SIDEWAYS": {"count": 0, "vol_usd": 0, "pairs": [], "weight": 0},
@@ -53,13 +51,11 @@ def get_market_segmentation(market_data):
     
     total_market_vol = 0
     
-    # Групуємо пари за режимами, які визначив сканер
+    # Використовуємо дані, зібрані сканером по списку MARKET_ASSETS
     for pair, stats in market_data.items():
         regime = stats.get('regime', "1. SIDEWAYS")
         
-        # Вираховуємо приблизний об'єм (базуємось на ціні)
-        # В реальності тут краще використовувати дані Ticker, але для сегментації 
-        # достатньо розподілу активів за кількістю та волатильністю
+        # Розрахунок "ваги" активу в поточному моменті
         vol_score = stats.get('volatility', 1.0) * stats.get('price', 1.0)
         
         if regime in segmentation:
@@ -68,7 +64,7 @@ def get_market_segmentation(market_data):
             segmentation[regime]["vol_usd"] += vol_score
             total_market_vol += vol_score
 
-    # Розрахунок ваги (Weight) для кожного сегмента
+    # Розрахунок Weight (%) для Gearbox
     for reg in segmentation:
         if total_market_vol > 0:
             segmentation[reg]["weight"] = round((segmentation[reg]["vol_usd"] / total_market_vol) * 100, 2)
@@ -78,33 +74,36 @@ def get_market_segmentation(market_data):
     return segmentation
 
 def display_segmentation_table(segmentation):
-    """Виводить красиву таблицю в консоль (як ти любиш)"""
+    """Візуалізація ринкових режимів у консоль PuTTY"""
     print("\n" + "="*70)
     print(f"📊 MARKET SEGMENTATION REPORT | {time.strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*70)
-    print(f"{'REGIME':<18} | {'COUNT':<6} | {'WEIGHT (%)':<12} | {'ASSETS'}")
-    print("-" * 70)
+    
+    table = PrettyTable()
+    table.field_names = ["REGIME", "COUNT", "WEIGHT (%)", "TOP ASSETS"]
+    table.align["REGIME"] = "l"
+    table.align["TOP ASSETS"] = "l"
     
     for reg in sorted(segmentation.keys()):
         data = segmentation[reg]
+        # Показуємо перші 3 активи для компактності
         pairs_str = ", ".join(data['pairs'][:3]) + ("..." if len(data['pairs']) > 3 else "")
-        print(f"{reg:<18} | {data['count']:<6} | {data['weight']:>10.1f}% | {pairs_str}")
+        table.add_row([
+            reg, 
+            data['count'], 
+            f"{data['weight']}%", 
+            pairs_str
+        ])
     
+    print(table)
     print("="*70)
 
-# Стара функція для сумісності (якщо потрібно)
-def get_market_sentiment(force_scan=False):
-    # Ця логіка тепер делегована в main.py через get_market_segmentation
-    # Але залишаємо її як проксі
-    print("📝 Sentiment scan requested via Selector proxy.")
-    return "1. SIDEWAYS", 0.0
-
 if __name__ == "__main__":
-    # Тестовий запуск
+    # Тестовий прогін з використанням списку зі сканера
+    print(f"🔍 Testing Selector with global assets: {len(MARKET_ASSETS)} pairs found.")
     test_data = {
-        "XBTUSD": {"regime": "2. BULLISH", "price": 65000, "volatility": 2.1},
-        "ETHUSD": {"regime": "1. SIDEWAYS", "price": 3500, "volatility": 1.5},
-        "SOLUSD": {"regime": "2. BULLISH", "price": 145, "volatility": 4.5}
+        MARKET_ASSETS[0]: {"regime": "2. BULLISH", "price": 65000, "volatility": 2.1},
+        MARKET_ASSETS[1]: {"regime": "1. SIDEWAYS", "price": 3500, "volatility": 1.5}
     }
     seg = get_market_segmentation(test_data)
     display_segmentation_table(seg)
