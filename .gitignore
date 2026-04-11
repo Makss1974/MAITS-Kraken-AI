@@ -1,0 +1,23 @@
+# Keys and Secrets (Rule 2025-12-22)
+.env
+key.env
+Kucoin_key/
+Kraken_key/
+
+# Python environment and cache
+__pycache__/
+*.py[cod]
+*$py.class
+.cache/
+venv/
+trading_env/
+.local/
+
+# Logs and Data (Protecting your PnL)
+*.log
+*.lsonl
+state/analysis/reports/*.txt
+
+# System files
+.DS_Store
+
