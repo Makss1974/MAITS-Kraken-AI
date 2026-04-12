@@ -5,23 +5,21 @@ import gc
 import sys
 from datetime import datetime
 
-# BASE_DIR - Єдиний робочий каталог проекту
-BASE_DIR = "/home/ubuntu/03.KRAKEN_PROD/MAITS"
+# BASE_DIR - Тепер динамічний! Працює в будь-якій папці
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, 'core'))
 
 # Core Tool Imports
-from core.Gearbox import Gearbox  # Переконайтеся, що файл називається Gearbox.py
+from core.Gearbox import Gearbox
 from core.scanner import get_historical_stats, MARKET_ASSETS
 from core.selector import get_market_segmentation, display_segmentation_table
 from core.ai_guardian import perform_final_audit
-from core.analyst import BotAnalyst
 
 # Конфігурація шляхів та бюджету
 LOG_FILE = os.path.join(BASE_DIR, "state/trades_history.lsonl")
 TOTAL_BUDGET = 5000.0
 
-# Ініціалізація аналітика та коробки передач
-analyst = BotAnalyst(log_path=LOG_FILE, start_balance=TOTAL_BUDGET)
+# Ініціалізація коробки передач (Аналітика тепер всередині AI Guardian)
 gearbox = Gearbox(total_balance=TOTAL_BUDGET)
 
 # Імпорт двигунів
@@ -58,7 +56,7 @@ class MaitsController:
 
         market_data = {}
         total_assets = len(self.target_pairs)
-        print(f"🔍 Scanning {total_assets} assets via Kraken CLI...")
+        print(f"🔍 Scanning {total_assets} assets...")
         
         for i, pair in enumerate(self.target_pairs):
             try:
@@ -82,12 +80,11 @@ class MaitsController:
         # 2. Розподіл капіталу через Gearbox
         allocations = gearbox.allocate_capital(segmentation)
         
-        # 3. ФАЗА ВИКОНАННЯ (Виправлений цикл запуску)
+        # 3. ФАЗА ВИКОНАННЯ
         for engine_key, budget in allocations.items():
             if budget <= 10: 
                 continue
             
-            # Визначаємо відповідний режим ринку для логів
             current_regime_name = "N/A"
             for reg_name in segmentation.keys():
                 if engine_key.split('_')[0] in reg_name:
@@ -97,28 +94,21 @@ class MaitsController:
             self.last_engine = engine_key
             self.last_regime = current_regime_name
 
-            # --- ФІКС: Фільтрація списку пар для двигуна ---
             pairs_list = segmentation.get(current_regime_name, {}).get('pairs', [])
-            
-            selected_pairs_data = []
-            for p_name in pairs_list:
-                if p_name in market_data:
-                    p_info = market_data[p_name].copy()
-                    p_info['name'] = p_name
-                    selected_pairs_data.append(p_info)
+            selected_pairs_data = [
+                {**market_data[p], 'name': p} for p in pairs_list if p in market_data
+            ]
 
-            # Виклик двигуна
             engine = self.engine_instances.get(engine_key)
             if engine and selected_pairs_data:
                 print(f"⚙️ Gearbox: Activating {engine_key} with ${budget:.2f}")
                 try:
-                    # Тепер передаємо СПИСОК словників, як того очікують двигуни
                     engine.run_cycle(selected_pairs_data, budget)
                 except Exception as e:
                     print(f"⚠️ Engine {engine_key} failed: {e}")
 
-        # 4. AI Guardian Audit
-        print("\n🛡️ AI Guardian performing audit...")
+        # 4. AI Guardian Audit (Тут тепер вся аналітика)
+        print("\n🛡️ AI Guardian performing audit & analysis...")
         try:
             perform_final_audit(LOG_FILE)
         except Exception as e:
@@ -129,7 +119,7 @@ class MaitsController:
 if __name__ == "__main__":
     print(f"\n{'*' * 70}")
     print("🌟 HELLO, BOSS! I'm MAITS — your multi-gear trading system.")
-    print(f"🤖 MAITS v2.4 ONLINE | Working Directory: {BASE_DIR}")
+    print(f"🤖 MAITS v2.5 ONLINE | Working Directory: {BASE_DIR}")
     print(f"{'*' * 70}\n")
 
     try:
@@ -137,14 +127,7 @@ if __name__ == "__main__":
         while True:
             try:
                 controller.run_cycle()
-                
-                # Оновлений моніторинг (Дашборд)
-                analyst.display_dashboard(
-                    active_engine_name=controller.last_engine, 
-                    market_regime=controller.last_regime,
-                    pairs_count=len(controller.target_pairs)
-                )
-
+                print(f"📊 Dashboard updated. Engine: {controller.last_engine} | Regime: {controller.last_regime}")
             except Exception as cycle_error:
                 print(f"⚠️ Emergency: Error during execution cycle: {cycle_error}")
             
