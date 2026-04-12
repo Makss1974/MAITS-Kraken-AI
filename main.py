@@ -5,7 +5,7 @@ import gc
 import sys
 from datetime import datetime
 
-# BASE_DIR - Тепер динамічний! Працює в будь-якій папці
+# BASE_DIR - Динамічне визначення каталогу (Rule 2025-12-29)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(BASE_DIR, 'core'))
 
@@ -14,15 +14,17 @@ from core.Gearbox import Gearbox
 from core.scanner import get_historical_stats, MARKET_ASSETS
 from core.selector import get_market_segmentation, display_segmentation_table
 from core.ai_guardian import perform_final_audit
+from core.analyst import BotAnalyst
 
-# Конфігурація шляхів та бюджету
+# Конфігурація (Rule 2026-02-12)
 LOG_FILE = os.path.join(BASE_DIR, "state/trades_history.lsonl")
 TOTAL_BUDGET = 5000.0
 
-# Ініціалізація коробки передач (Аналітика тепер всередині AI Guardian)
+# Ініціалізація інструментів аналітики та управління
+analyst = BotAnalyst(log_path=LOG_FILE, start_balance=TOTAL_BUDGET)
 gearbox = Gearbox(total_balance=TOTAL_BUDGET)
 
-# Імпорт двигунів
+# Імпорт двигунів стратегій
 try:
     from engines.anti_crash_engine import AntiCrashEngine
     from engines.bear_engine import BearEngine
@@ -37,6 +39,7 @@ except ImportError as e:
 
 class MaitsController:
     def __init__(self):
+        # Створення необхідних папок (Rule 2025-12-29)
         os.makedirs(os.path.join(BASE_DIR, "state"), exist_ok=True)
         self.target_pairs = MARKET_ASSETS 
         
@@ -48,15 +51,15 @@ class MaitsController:
             "HOLD_ENGINE": HoldEngine() if HoldEngine else None,
             "ANTI_CRASH_ENGINE": AntiCrashEngine() if AntiCrashEngine else None
         }
-        self.last_regime = "N/A"
-        self.last_engine = "N/A"
+        self.last_regime = "WAITING"
+        self.last_engine = "IDLE"
 
     def run_cycle(self):
         print(f"\n{'='*70}\n🚀 MAITS CYCLE | {datetime.now().strftime('%H:%M:%S')}")
 
         market_data = {}
         total_assets = len(self.target_pairs)
-        print(f"🔍 Scanning {total_assets} assets...")
+        print(f"🔍 Scanning {total_assets} assets via Kraken CLI...")
         
         for i, pair in enumerate(self.target_pairs):
             try:
@@ -80,11 +83,13 @@ class MaitsController:
         # 2. Розподіл капіталу через Gearbox
         allocations = gearbox.allocate_capital(segmentation)
         
-        # 3. ФАЗА ВИКОНАННЯ
+        # 3. Фаза виконання стратегій
+        active_found = False
         for engine_key, budget in allocations.items():
             if budget <= 10: 
                 continue
             
+            active_found = True
             current_regime_name = "N/A"
             for reg_name in segmentation.keys():
                 if engine_key.split('_')[0] in reg_name:
@@ -107,8 +112,12 @@ class MaitsController:
                 except Exception as e:
                     print(f"⚠️ Engine {engine_key} failed: {e}")
 
-        # 4. AI Guardian Audit (Тут тепер вся аналітика)
-        print("\n🛡️ AI Guardian performing audit & analysis...")
+        if not active_found:
+            self.last_engine = "IDLE (Safety First)"
+            self.last_regime = "PIG/UNCERTAIN"
+
+        # 4. AI Guardian Audit
+        print("\n🛡️ AI Guardian performing audit...")
         try:
             perform_final_audit(LOG_FILE)
         except Exception as e:
@@ -119,20 +128,29 @@ class MaitsController:
 if __name__ == "__main__":
     print(f"\n{'*' * 70}")
     print("🌟 HELLO, BOSS! I'm MAITS — your multi-gear trading system.")
-    print(f"🤖 MAITS v2.5 ONLINE | Working Directory: {BASE_DIR}")
+    print(f"🤖 MAITS v2.5 SUPREME | Working Directory: {BASE_DIR}")
     print(f"{'*' * 70}\n")
 
     try:
         controller = MaitsController()
         while True:
             try:
+                # Виконання основного циклу торгівлі
                 controller.run_cycle()
-                print(f"📊 Dashboard updated. Engine: {controller.last_engine} | Regime: {controller.last_regime}")
+                
+                # ВИВІД ГОЛОВНОЇ ТАБЛИЦІ (DASHBOARD)
+                analyst.display_dashboard(
+                    active_engine_name=controller.last_engine, 
+                    market_regime=controller.last_regime,
+                    pairs_count=len(controller.target_pairs)
+                )
+
             except Exception as cycle_error:
-                print(f"⚠️ Emergency: Error during execution cycle: {cycle_error}")
+                print(f"⚠️ Emergency Error: {cycle_error}")
             
             print(f"\n⏳ System in standby. Sleeping 5 minutes...")
             time.sleep(300)
+            
     except KeyboardInterrupt:
         print("\n👋 System shutdown initiated by Boss. Goodbye!")
     except Exception as e:
